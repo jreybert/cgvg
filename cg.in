@@ -65,6 +65,7 @@ unless (-d $LOGDIR) {
 $Promptname = $0;
 $Promptname =~ s/(.*\/)//;
 $VG = "$1\vg";  # path to vg
+my $last_pager_selected = -1;
 
 # Parse the command-line.
 if ($#ARGV+1) {
@@ -395,7 +396,10 @@ sub display_read_log {
 
 		# Print the properly justified first 3 fields.
 		print "\e[$b[1];${c[1]}m" if ($COLORS);
+    
+    print "\033[4m" if ( $rec[$i]->{num} == $last_pager_selected && $COLORS );
 		printf "%${mnum}s ", $rec[$i]->{num};  
+    print "\033[0m" if ( $rec[$i]->{num} == $last_pager_selected && $COLORS );
 		print "\e[0m" if ($COLORS);
 
 		if ($COLON) {
@@ -505,8 +509,33 @@ sub do_pager() {
 		($Command eq "p"));
 	return 0 if (($Command eq "l") | ($Command eq "'"));
 
+  # next file
+  if ($Command eq "f") {
+    my $j = $last_pager_selected;
+    my $current_file =  $rec[$j]->{file};
+    while ( $current_file eq $rec[$j]->{file} ) {
+      $j++;
+      return 0 if ($j >= @rec - 1);
+    }
+    $last_pager_selected = $j;
+		system "$VG $j";
+    return 0;
+  }
+  # next entry
+  if ($Command eq "n") {
+    return 0 if ($last_pager_selected >= @rec - 1);
+    $last_pager_selected++;
+		system "$VG $last_pager_selected";
+    return 0;
+  }
 	# numbers entered; run vg
 	if ($Command =~ /^\d+$/) {
+    $last_pager_selected = $Command;
 		system "$VG $Command";
+    return 0;
 	}
+  if ($Command eq "h") {
+    print "Next page: [ ↵ v | Previous page: - b p | Reprint: l ' | Next entry: n | Next file: f | Quit: q Q";
+    return 0;
+  }
 }
