@@ -1,0 +1,42 @@
+.\"             -*-Nroff-*-
+.\"
+.TH VG 1 "13 Mar 2002" "" ""
+.SH NAME
+vg \- Edit an entry found by the cg script
+.SH SYNOPSIS
+.B vg
+[ -l ] number
+.SH DESCRIPTION
+.B "vg "
+is the companion script to cg(1) which fires off an editor to
+edit an entry found by cg(1).  This script is run only with one
+argument which just be an integer within rage of the output of
+cg(1), as seen on the far left column.  (Such as "vg 0".)  Running
+it with the
+.B -l
+option edits using the log from the last search.
+.PP
+.SH "COMMAND\-LINE OPTIONS"
+.TP 0.5i
+.B "\-l "
+Edits from the last search rather than from this terminal
+.PP
+.SH FILES
+.ne 3
+.TP
+.I ${HOME}/.cglast
+Log file of the last search.
+.ne 3
+.TP
+.I ${HOME}/.cgvgrc
+Per-user configuration file (if the defaults are not desireable).
+.fi
+
+.SH "SEE ALSO"
+.BR cg (1),
+.BR perl (1),
+.BR cscope (1)
+
+.SH AUTHOR
+.B vg
+was written by Joshua Uziel <uzi@uzix.org>.

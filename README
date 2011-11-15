@@ -1,0 +1,85 @@
+Code Grep and Vi Grepped
+cg, vg - tools for finding and modifying on keywords
+Joshua Uziel <uzi@uzix.org> - March 13, 2002 - version 1.6.2
+
+[Note: the below is historical... SCO released cscope under a BSD
+license several months ago (http://cscope.sourceforge.net/), which
+I also work on.  This doesn't mean cgvg isn't useful anymore... I
+personally still use it, and I'm happy to have it... maybe you'll
+find use in it as well.]
+
+All too often I need to dig through source code.  Where something
+is defined, used, what files, etc.  There's a great tool for doing
+this from AT&T called "cscope" and a very alpha free clone of it
+called "cs" (that doesn't look like it's being actively worked
+on) that does this.  There are some alternatives... like ctags
+and etags for instance... but these only take you to where something
+is defined... not wherever it is used, which makes it frustrating
+when, for example, you're at the definition of a function and
+instead want to see who and what use that function.
+
+So, as a quick hack, mostly for myself, I started writing up some 
+perl scripts (I consciously chose perl, but considered other 
+languages first).  One script, "cg", does the equivalent of a find
+and grep, storing matches and then displaying it in a human-friendly
+manner.  Run it like so:
+
+[11:14pm] tux:/usr/src/linux/fs> cg ext2_permission
+0 ext2/acl.c   22 * ext2_permission ()
+1 ext2/acl.c   26 int ext2_permission (struct inode * inode, int mask)
+2 ext2/dir.c   74 ext2_permission,        /* permission */
+3 ext2/file.c 102 ext2_permission,        /* permission */
+
+So, you see in the first column, we have a count, the second column
+is the filename, the third column is the line number, and after that
+is what it found on that line.  This gets stored in your home directory
+in a log file, so that if you want to see it again, all you have to
+do is type "cg" to view it again.  Also stored in the first line is
+the pwd of where your inquiry was run from, so you that won't have
+to be there to do the second half of this kit.
+
+There are several ways of running "cg".  Again, "cg" alone recalls the
+last search.  You can also run it like "cg pattern", and it'll search
+recursively for all default patterns.  To that, you can add arguments
+like "-i" for case insensitive like "cg -i pattern".  If you don't want
+to use the default searching, you can specify where to search and run
+like grep(1).  For example, running "cg pattern '*.c'" will check all .c
+files recursively.  If you want to search all files, you can use "cg
+pattern '*'".  Note that the quotes (single or double, it doesn't
+matter) are recommended because otherwise the shell expands it before it
+gets to perl, so the search would not be recursive.  It of course works
+like this as well.  This script also supports coloring and bolding options
+which are both hardcoded and customizable per-user with a ~/.cgvgrc file.
+
+Also among "cg"'s capabilities is a "colon mode" for printing
+as well as a built-in pager.  The pager allows for colors while
+paging (that "more" or "less" can't deal with), as well as allowing
+one to go back or launch an editor directly using our other script...
+
+The other script is called "vg" and opens an editor on what has been 
+grepped (most editors work).  So remember that count?  All you
+have to do is run "vg count" and it'll fire off a editor in that file
+and at that line number.  So, in our example, running "vg 1" would
+open up an editing session on fs/ext2/acl.c at line 26.
+
+It is the storing of the query in the logfiles that allows cg and vg
+to work together.  Also, the reason for the ability to see the
+results of the previous query is there because we can, and because
+quite often you may want to revisit the last query, so why do an
+expensive grep operation again?  The logfile is stored in a file
+of the form $HOSTNAME.shell_pid in your ~/.cgvg/ directory.  This
+is so that different shells will have different logs.  Also, a
+symbolic link to your last search is kept as ~/.cglast, and any
+terminal that doesn't have a log associated with it will default
+to the last search.  Using the last log instead of the one with
+the present terminal is doable with the '-l' option.
+
+Now true that these scripts are very much hacks, but they at least
+provide me with the functionality that I was looking for in a very
+smal amount of time.  They're not as feature-rich or precise as
+cscope is, but at the same time are simple to use and are not
+language-specific (cscope only knows C and not C++, java or perl
+for example).
+
+Used with something like ctags, this can hopefully save you a lot
+of time.  Feel free to send me comments or suggestions...

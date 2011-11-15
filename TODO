@@ -1,0 +1,28 @@
+These are desired features for the future... if you want to do any of
+these (since I'm busy at times and may not get to them for a while),
+please email me at uzi@uzix.org ...
+
+* Optimization!  This program has to do a lot of searching, and any
+  and all speed improvements need to be applied.
+
+* Perhaps improve error checking on the .cgvgrc file
+
+* Add options and arguments.  Currently, the only options beyond the
+  search pattern and search list is '-i', or case insensitive, 
+  '-l' for the "last log" and the pager options '-p' and -P'. Additional
+  possible options need to be identified and implemented.
+
+* One such option (which goes with an idea) is to fix translating
+  filespec processing, and to also have a -r "Perl RegExp pass-through"
+  option to bypass it and use Perl RegExps.
+
+* See if the remaining hard-coded applications (currently "stty" and "which")
+  can be made into straight perl without requiring a plugin from CPAN.
+
+* Clean up the code a bit more.  This will help out for the next point
+  which is...
+
+* Implement a GUI.  I have my ideas about how this should be.  Talk to
+  me if you have any desire to work on this.
+
+Feel free to contact me about improving these scripts.

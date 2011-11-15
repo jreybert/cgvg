@@ -1,0 +1,16 @@
+cgvg Installation Instructions
+==============================
+
+Installation is quick and painless...
+
+./configure
+make install
+
+(A "make" isn't really needed.)  An possible option you might
+want to use to configure is --prefix= to configure where it
+goes instead of the default... so "./configure --prefix=/usr"
+to make sure it goes into directories under /usr, etc.
+
+If you want to modify per-user options, copy the cgvgrc-example
+file into your home directory as .cgvgrc ... have fun! :)
+

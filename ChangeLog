@@ -1,0 +1,200 @@
+----------------
+Change Log
+----------------
+March 13, 2002
+1.6.2 - Minor cleanup
+
+	Been a while... haven't really had any need to add or update cgvg.
+	We now have a cscope at http://cscope.sourceforge.net/ which I urge
+	people to look at.  Even then, I still find myself using cgvg a lot.
+
+	I'd like to thank Joachim Bauernberger and Timothy Cava for pointing
+	out the bugs fixed in this release.  Thanks to Sergio Talens-Oliag
+	for packaging it for Debian.  And thanks to everyone who has written
+	a kind email showing your appreciation. :)
+
+	Fixed in this release:
+	* The pager wouldn't allow for selection of item "0".
+	* If $HOSTNAME wasn't set, it was left blank, causing the log cleanup
+	  to fail.
+	* Misplaced negation in log cleanup would always delete files.
+	* More exact matching on checking that an editor is in the $PATH.
+
+August 29, 2000
+1.6.1 - Pretty much added two things... 
+
+	* "Colon mode"... which prints out something like this:
+
+		41 cgvg-common.pl:94  open (IN, "<$RCFILE");
+
+	  instead of this:
+
+		41 cgvg-common.pl  94 open (IN, "<$RCFILE");
+	
+	  written on the request of a coworker who wanted it to mesh with
+	  his editor a bit better.
+
+	* Thanks to the good grace of Jeffrey R. Hay, cgvg now how has
+	  built-in pager so that colors will remain while paging and
+	  editing can occur while viewing the output.  Check it out. :)
+
+November 3, 1999
+1.6.0 - Some decent change to this version.
+	
+	* Cleaned up the code some.  I've introduced a cgvg-common.pl
+	  file.  This does (and will) contain common subroutines and
+	  variables.  More stuff will move there as I possibly do a GUI.
+	  (If I do one.)  The script are now also broken into subroutines
+	  a bit for easier readability and managability.  Some more cleaning
+	  has to happen, but this is a start.
+
+	* Logfile storage has changed quite a bit.  Now instead of one
+	  global .cglast file, I have a .cgvg/ directory where I store
+	  a log file for each shell in the form $HOSTNAME.shell_pid.
+	  This is so that a user can use cgvg in several different places
+	  and not lose their searches.  The name is for cleanup.  If it
+	  doesn't find a pid that there's a log for on the present machine,
+	  it deletes the log file.  The last search is still obtainable, but
+	  now with a '-l' option... so "cg -l" to see the last search, and
+	  "vg -l number" to edit an entry from that log.  Also note that
+	  not having a log with the present terminal will default it to
+	  the last log.  (Some of this idea and the next two came from Goran
+	  Koruga <goran.koruga@hermes.si>)
+	
+	* There is no more BOLD option.  Now, all colors are achieveable
+	  as the color, and b_color for the bold version (so "red" and
+	  "b_red" for example).
+	
+	* The EXCLUDE option is now in the logfile, as is an AGE option
+	  for a default cleanup time on logfiles.
+
+	* There is now a configure script for this program to make things
+	  (hopefully) more convenient.  (Fix by Manish Singh <yosh@gimp.org>)
+	
+	* Fix for handling the $EDITOR variable better if the editor is
+	  using any arugments.  (Fix by Clinton Popetz <cpopetz@cpopetz.com>)
+
+	* Also searching for *.l, *.y and *.C files by default as well.
+	  (Request by Adam Marks <adam@cp.net>)
+
+October 1, 1999
+1.5.2 - Just a small bugfix release.  First, I removed a debug statement
+	that I forgot to take out before sending off the last version
+	(oops).  The bigger change is that now it'll parse through
+	directories that are given as arguments... so if you do a
+	"cg 'pattern' dir1 dir2", it'll recursively search through
+	those directories.
+
+August 25, 1999
+1.5.1 - Fixed a bug where if one and only one file was specified
+	to search through and it was an existing text file that it
+	would read that file rather than blindly assume it's a
+	search expression and do a huge recursive search.
+
+	Cleaned up the finding code a bit.  Now both the default
+	search and a user-specified search use the same &wanted
+	subroutine, with the search list being specified by a
+	$SEARCH variable.  Along with this, the default search list
+	is user-defineable in the .cgvgrc file as well.
+
+August 18, 1999
+1.5 -	The big change of this version is that now the searching is
+	handled by Perl rather than by grep(1), egrep(1) and fgrep(1).
+	This required quite a bit of change, but everything is working
+	like it was before.  The only really desirable option beyond
+	the '-n' option (which I've covered) was '-i', which is
+	covered as the only option at the moment.  The only things
+	that are not handled by Perl now and are hard-coded now are
+	"stty" and "which", and when I find a clean way of implementing
+	them without requiring a trip to CPAN, I'll add those as well.
+
+	Bugs have been fixed with handling the configuration file,
+	and with the user-specified search list.  Now a user can
+	search (for example) all C files with "cg pattern *.c" or
+	"cg pattern '*.c'"... with the former being expanded by the
+	shell and the latter being pattern matched by Perl.  Also
+	note that the latter is a recursive search whereas the former
+	is only those files specified on the command-line.  Colors
+	are also now configurable by the configuration file.
+
+	Manpages and a Makefile have also been added for user convenience.
+
+August 15, 1999
+1.4 -	Updates made here fix a bug that not all of the search list
+	was being utilized, and the biggest change being that cg
+	now uses Perl's internal File::Find routine instead of an
+	external /bin/find (or whatever) to get the list of files.
+
+	Syntax has changed a bit because of this... when files to
+	search are specified, it must be done in quotes (single or
+	double) like "cg pattern '*'" to search all files.
+
+	Also, there's now a ~/.cgvgrc file where users can specify
+	their editor, and bold and coloring options so that not all
+	system users have to use the default.  See the "cgvgrc_example"
+	file for a sample with the defaults.  Currently only $EDITOR,
+	$BOLD, $BOLD_ALTERNATE and $COLORS can be set.  A bug in
+	version 1.3 was corrected with the $BOLD option as well.
+
+July 7, 1999
+1.3 -	Same as the last version, except now colors are supported
+	in cg.  There are the options $BOLD, $BOLD_ALTERNATE and  
+	$COLOR to be set to 1 (on) or 0 (off) if you do or don't 
+	want these feature.  $COLOR is needed for the $BOLD
+	options, and really you should select only one or neither
+	of the two $BOLD options.  Colors only work when displaying
+	straight to STDOUT.
+
+	In vg, I've gotten rid of the $CGEDITOR variable and replaced
+	it with the standard $EDITOR environment variable since I've
+	found most editors to support the +number option.  Also fixed
+	a bug to give a clear error when the editor doesn't exist.
+
+June 30, 1999
+1.2 -	More changes to the cg script.  Rather than simply print the
+	logfile like previous versions, I actually attempt to make
+	it human readable now.  The logfile keeps the same format,
+	just what's printed to the screen has changed.  In doing this,
+	though, there are a gotcha or two to watch for in how much
+	of the string can be printed.  Also, I've made an attempt to
+	have the program auto-detect the number of columns using
+	"stty -a" rather than assuming 80 columns.  Switched to
+	using "fgrep" instead of regular "grep", as it seemed more
+	appropriate for this task.  Did some code cleanup in both
+	cg and vg otherwise.  An environment variable, $CGEDITOR
+	can be set for choosing an editor to use now.
+
+	With this version, I'm close to probably as far as this
+	may go (with the exceptions of patches and improvements).
+	Future versions of this program will possibly just focus
+	on cleanups from the current state.  Realistically, the
+	next step is to make a real cscope clone.  It's often in
+	the back of my mind, so feel free to contact me if you
+	would like to discuss this possibility.
+
+June 28, 1999
+1.1 - 	Changed how the cg program works a bit.  Instead of having the
+	user define the files to search in (*, *.c, *.java, etc.), it
+	now has a list of files built-in.  This should decrease the
+	overhead quite a bit (in not searching all files), allow for
+	all versions of grep (instead of just GNU grep v2.3 and later),
+	and cut an argument... none of the flexibility is lost, and
+	it's actually advisable to avoid the mode where you specify
+	the files to search for as a huge overhead reduction in the
+	program's runtime.  The use of arguments for find(1) chosen 
+	are also done so that non-GNU versions of it can be used, and 
+	I use Perl to do some cleanup.
+
+	The vg script has also been modified to support both "vim"
+	and regular "vi".  Before, I was executing "vim path/file +line",
+	and instead now am running "vi +line path/file", which is
+	how both traditional vi's and vim can handle it.  All in all,
+	these scripts will work fine on both the Linux and Solaris
+	machines I have tested on (both GNU and non-GNU tools).
+
+	Renamed "rg" to "cg", as the name seemed more appropriate.
+
+June 8, 1999
+1.0 -	Initial release.  Requires GNU grep v2.3 or later, and is a
+	bit of a dog to run... but hey, it does what it's supposed to
+	do, so I'm happy for now.  Scripts are "rg" and "vg".

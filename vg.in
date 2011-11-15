@@ -1,0 +1,103 @@
+#!@PERL@
+#
+# vg - Vi Grepped - edit a file at a line specified in a cg search.
+# Copyright 2000-2002 by Joshua Uziel <uzi@uzix.org> - version @VERSION@
+#
+# Usage: vg number
+#
+# Helper script to go with cg for opening a editor conveniently
+# with the correct file and line as shown in cg's log.  Run this
+# with a single numerical argument (ie. "vg 3") to edit the desired
+# log entry.
+#
+# This script seems to work fine with a number of editors, including
+# vi, vim, emacs, pico, joe, etc.  (Despite it's name.)
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+
+# Include our general functions and variables.
+use File::Basename;
+
+BEGIN { $prefix = "@prefix@" }
+use lib dirname($0), "@datadir@/cgvg";
+require 'cgvg-common.pl';
+
+&parse_rcfile;
+
+# We can't edit if the editor doesn't exist.
+`which $EDITOR`;
+$no_editor = $?;
+die "Error: Editor $EDITOR isn't in your path.\n" if ($no_editor != 0);
+
+# One argument can be numerical only.
+if ($#ARGV == 0) {
+	$num = $ARGV[0];
+	die "Error: Non-numerical argument.\n" 
+		unless (($num =~ /\d+/) && ($num !~ /\D+/));
+
+# Two arguments must be '-l' and then a number.
+} elsif ($#ARGV == 1) {
+	die "Error: Unknown option.\n" unless ($ARGV[0] == '-l');
+	$num = $ARGV[1];
+	die "Error: Non-numerical argument.\n" 
+		unless (($num =~ /\d+/) && ($num !~ /\D+/));
+	$LOGFILE = $LASTLOG;
+
+# Can't have three or more, or zero arguments.
+} else {
+	die "Bad argument(s).  Usage: ", basename($0), " [-l] number\n";
+}
+
+# Default to LASTLOG if LOGFILE doesn't exist, else error.
+$LOGFILE = $LASTLOG unless (-f $LOGFILE);
+die "Error: No existing logfile.\n" unless (-f $LOGFILE);
+
+&edit($num);
+
+# If we're here, there was a problem.
+die "Error: Numerical argument invalid.\n";
+
+### END
+
+#--------------------------------------------------------------------------#
+## Subroutines								  ##
+#--------------------------------------------------------------------------#
+
+sub edit {
+	my $num = shift(@_);
+	open (IN, "<$LOGFILE");
+
+	# Check if our current path is the path when the log was taken.  If so,
+	# then nullify $path, else set it to $path/ so we can use anywhere.
+	$PWD="$ENV{PWD}\n";
+	$path=(split(/=/, <IN>))[1];
+	if ($PWD eq $path) {
+		$path="";
+	} else {
+		chomp($path);
+		$path="$path/";
+	}
+
+	# Find the line we want and open up vi to that line.
+	foreach $line (<IN>) {
+		($this, $file, $line) = (split(/:/, $line))[0,1,2];
+
+		# Change this to execute the editor.
+		if ($num == $this) {
+			close (IN);
+			exec "$EDITOR +$line $path$file"
+		}
+	}
+}

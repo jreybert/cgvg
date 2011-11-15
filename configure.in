@@ -1,0 +1,28 @@
+dnl cgvg configure.in File
+dnl   - by: Manish Singh
+dnl
+dnl GNU Autoconf file
+
+AC_INIT(cg.in)
+
+AM_INIT_AUTOMAKE(cgvg, 1.6.2)
+
+AC_PATH_PROGS(PERL, perl5 perl perl5.005 perl5.004, "")
+if test -z "$PERL"; then
+  AC_MSG_ERROR([perl not found])
+fi
+
+AC_MSG_CHECKING(for perl version 5 or higher)
+if $PERL -e 'exit ($] < 5)'; then
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_RESULT(no)
+  AC_MSG_ERROR([Get perl5 sexy boy!])
+fi
+
+dnl FINISHED!
+AC_OUTPUT([
+Makefile
+cg
+vg],
+[chmod +x cg vg])

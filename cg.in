@@ -1,0 +1,512 @@
+#!@PERL@
+#
+# cg - Code Grep - grep recursively through files and disiplay matches
+# Copyright 2000-2002 by Joshua Uziel <uzi@uzix.org> - version @VERSION@
+#
+# usage: cg [-i] [pattern] [files]
+#
+# Recursive Grep script that does a bit of extra work in adding a count
+# field and storing the data in a file, as well as displaying data in a
+# colorful and human-readable fashion.  Run with a perl regular expression
+# to search for it (with '-i' option for case-insensitive).  You can supply
+# a quoted file pattern to search for ('*.c'), run just "cg" alone to
+# recall the last search (since it's save to the $LOGFILE), and running
+# with a list of files is allowable (though not recurive and pattern-matched
+# like the quoted variation).
+#
+# Examples: "cg printf", "cg printf '*.c'", "cg -i printf '*.c'",
+#		"cg -i printf *.c", "cg", etc.
+#
+# The point of this script was to provide source code searching
+# functionality similar to that AT&T's cscope(1).  This is a pure
+# hack and lacks any sophistication, but has the advantage that it
+# can be used for more than just the C programming language, besides
+# adding the functionality that is generally missing from a developer's
+# toolbox.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+
+use POSIX;
+require "find.pl";
+
+# Include our general functions and variables.
+use File::Basename;
+
+BEGIN { $prefix = "@prefix@" }
+use lib dirname($0), "@datadir@/cgvg";
+require 'cgvg-common.pl';
+
+# Check if stdout goes to a tty... can't do colors if we pipe to another
+# program like "more" or "less" or to a file.
+$COLORS = POSIX::isatty(fileno STDOUT) if ($COLORS);
+
+# Make the LOGDIR if we need it...
+unless (-d $LOGDIR) {
+	mkdir $LOGDIR, 0755;
+	die "Couldn't create LOGDIR $LOGDIR.\n" unless (-d $LOGDIR);
+}
+
+&log_cleanup;
+&parse_rcfile;
+
+# Set up our internal pager
+$Promptname = $0;
+$Promptname =~ s/(.*\/)//;
+$VG = "$1\vg";  # path to vg
+
+# Parse the command-line.
+if ($#ARGV+1) {
+
+	# Generate a new log unless we turn it off...
+	$generate = 1;
+
+	# Set the @ARGLIST and the file $SEARCH (if any) while counting
+	# non-dash arguments.  More than one means we have a $SEARCH, else
+	# we use the default list of files to search through.
+	$nondash = 0;
+	foreach (@ARGV) {
+		if (/^-/) {
+			push @ARGLIST, $_;
+		} else {
+			if ($nondash) {
+				push @FILELIST, $_;
+			} else {
+				$pattern = $_
+			}
+			$nondash++;
+		}
+	}
+	$nondash--;
+
+	# If we have a file list of size 1, use it as a search pattern
+	# for files automatically.
+	if ($nondash == 1) {
+		
+		# Unless that one thing is a file, in which case we just
+		# search it.
+		if (-T $FILELIST[0]) {
+			die "error: File $FILELIST[0] not readable.\n"
+				unless (-r $FILELIST[0]);
+			$nondash++;	# Psych out the $nondash check later.
+		} else {
+			$SEARCH = $FILELIST[0];
+			$SEARCH =~ s/\./\\\./g;		# . --> \.
+			$SEARCH =~ s/\*/\.\*/g;		# * --> .*
+		}
+	}
+
+	# Check our arguments
+	$insensitive = 0;
+	foreach (@ARGLIST) {
+		if (/^\-i$/) {
+			# -i alone should do nothing
+			$generate = 0 if ($nondash < 0);
+			$insensitive = 1;
+		} elsif (/^\-l$/) {
+			# We can't have more than -l alone.
+			die "error: Bad argument(s).\n" if ($#ARGV > 0);
+			$uselast = 1;	# implied $generate = 0;
+		} elsif (/^\-p$/) {
+			$PAGER = !$PAGER;
+			$generate = 0 if ($nondash < 0);
+		} elsif (/^\-P$/) {
+			$PAGER = 0;
+			$generate = 0 if ($nondash < 0);
+       		} else {
+			die "error: Bad argument(s).\n";
+		}
+	}
+}
+$generate = 0 if ($uselast);
+
+# Adding "(?i)" to the head makes it case-insensitive
+# (aka. data-driven case insensitivity)
+if ($insensitive) {
+	$pattern = "(?i)" . $pattern;
+}
+
+# Generate the log ...
+if ($generate) {
+
+	&find_files;
+	&generate_log;
+
+	# Remove the old LASTLOG and link it to the new one.
+	unlink $LASTLOG;
+	symlink $LOGFILE, $LASTLOG;
+}
+
+# Either way, we print the log... this part works to reformat things
+# differently from how it's stored to make it easier on the human eyes.
+
+# Get the number of screen columns.
+&get_number_of_columns_rows;
+
+# We have the -l option.
+$LOGFILE = $LASTLOG if ($uselast);
+
+# Parse and store the logfile and then print it out.
+&read_log;
+&display_read_log;
+
+### END
+
+#--------------------------------------------------------------------------#
+## Subroutines								  ##
+#--------------------------------------------------------------------------#
+
+#
+# Clean up code.  We generate a bunch of log files over time, and we 
+# want to clean 'em up if we don't need them.  Search for files for the
+# present host to clean up by seeing if the shell that ran them possibly
+# still exists.
+#
+sub log_cleanup {
+	foreach $file (<$LOGDIR/*>) {
+
+		# If it's this host
+		if ($file =~ /.*\/$HOSTNAME\.[0-9]+/) {
+
+			# Extract out the pid and check for the process
+			$pid = $file;
+			$pid =~ s/.*\/$HOSTNAME\.//;
+			$killfile = 1 if !(kill 0, $pid);
+		}
+
+		# File modification time is more than AGE days old.
+		$killfile = 1 if (-M $file > $AGE);
+
+		if ($killfile) {
+			# Not found... move the contents to LASTLOG file if
+			# LASTLOG points to it, otherwise just remove it.
+			if ($file == readlink $LASTLOG) {
+				unlink $LASTLOG;
+				rename $file, $LASTLOG;
+			} else {
+				unlink $file;
+			}
+		}
+	}
+}
+
+#
+# Get the number of columns our terminal has, or default to 78 (or 80 - 2)
+# Also get the number of rows our terminal has, or default to 23 (or 25 - 2)
+sub get_number_of_columns_rows {
+# Attempt to get the number of columns & rows from an "stty -a"
+	if (@TMP = `stty -a 2> /dev/null`) {
+
+		# Strip out the value with the string "column"
+		foreach $tmp (@TMP) {
+			my @SCR = split ';', $tmp;
+			foreach my $scr (@SCR) {
+				$COL = $scr if ($scr =~ /column/);
+				$ROW = $scr if ($scr =~ /rows/);
+			}
+		}
+		# Grab the digit characters surrounded by non-digit characters.
+		$COL =~ s/\D*(\d+)\D*/$1/;
+		$ROW =~ s/\D*(\d+)\D*/$1/;
+
+		# For Cols, Something's weird if 0, and we want more than 40.
+		die "Error: Zero value found for number of columns.\n" 
+			if ($COL == 0);
+		die "Error: Too few columns to work with.\n" if ($COL < 40);
+
+		# For Rows, Something's weird if 0, and we want more than 4.
+		die "Error: Zero value found for number of rows.\n" 
+			if ($ROW == 0);
+		die "Error: Too few rows to work with.\n" if ($ROW < 4);
+
+		# Adjust things to be a little smaller than the size.
+		$COL -= 2;
+		$ROW -= 2;
+	} else {
+		# Default assumption is 80 columns/25 rows, so do 2 less than it.
+		$COL = 78;
+		$ROW = 23;
+	}
+}
+
+#
+# Search for wanted entries for perl internal find subroutine.
+# Used the the &find's in find_files.
+#
+sub wanted {
+
+	# Skip things that aren't normal files (like directories).
+	if (-f $_) {
+
+		# Kill the leading ./ and push it on the @LIST
+		$name =~ s/^\.\///;
+
+		# Push onto the list if we have a match
+		push @LIST, $name if ($name =~ /$SEARCH/o);
+	}
+}
+
+
+#
+# Generate the list of files to search through.
+#
+sub find_files {
+	# Use the given list of files if more than 2 given by the shell,
+	# else to a recursive find, matching on the default or given pattern.
+	if ($nondash >= 2) {
+		@LIST = @FILELIST;
+
+		# For directories, do the find(s) down that directory.
+		for ($i=0; $i<=$#LIST; $i++) {
+			if (-d $LIST[$i]) {
+				&find($LIST[$i]);
+			}
+		}
+
+	} else {
+		# Do the find, which stores it in @LIST
+		&find('.');
+	}
+
+	# Remove files found in our $EXCLUDE list
+	@LIST = grep !/$EXCLUDE/, @LIST;
+
+	# Special case of no matching files, we die with an error.
+	die "error: No files to search found.\n" if ($#LIST < 0);
+}
+
+#
+# Generate the log.
+#
+sub generate_log {
+	$count = 0;
+	open (OUT, ">$LOGFILE");
+
+	# Give a point of reference if we change directories.
+	print OUT "PWD=$ENV{PWD}\n";
+
+	# Search through the list of files and generate the $LOGFILE
+	foreach $file (@LIST) {
+		# Only open text files (-T) that we can read (-r).
+		open(IN, "<$file") if ((-T $file) && (-r $file));
+
+		while (<IN>) {
+			# Search for the pattern (o == only compile once)
+			if (/$pattern/o) {
+				# $. is the line number and $_ is the entry
+				print OUT "$count:$file:$.:$_";
+				$count++;
+			}
+		}
+		close (IN);
+	}
+	close (OUT);
+}
+
+#
+# Read the log and store it for display
+#
+sub read_log {
+
+	# Default to LASTLOG if LOGFILE doesn't exist, else error.
+	$LOGFILE = $LASTLOG unless (-f $LOGFILE);
+	die "Error: No existing logfile.\n" unless (-f $LOGFILE);
+
+	open (IN, "<$LOGFILE");
+	<IN>;	# Waste the first line, used for PWD.
+
+	# $m* are used as "max" variables... maximum length at this point.
+	$mnum = $mline = $mfile = $i = 0;
+
+	while ($in = <IN>) {
+		chomp $in;
+
+		# Split and strip the first few colons, leave the rest.
+		($rec[$i]->{num}, $rec[$i]->{file}, $rec[$i]->{line}, 
+			$rec[$i]->{str}) = split /:/, $in, 4;
+
+		# Remove all leading whitespace.
+		$rec[$i]->{str} =~ s/^\s*//;
+
+		# Swap tabs for 8 spaces
+		$rec[$i]->{str} =~ s/\t/        /g;
+		
+		# If we have a longer length for this field, save it. 
+		if ($COLON) {
+			# Store it as filename length in colon mode
+			$tmp = length $rec[$i]->{file};
+			$tmp += length $rec[$i]->{line};
+			$mfile = $tmp if ($mfile < $tmp);
+		} else {
+			$tmp = length $rec[$i]->{file};
+			$mfile = $tmp if ($mfile < $tmp);
+			$tmp = length $rec[$i]->{line};
+			$mline = $tmp if ($mline < $tmp);
+		}
+
+		$i++;
+	}
+	close (IN);
+
+	# Better than doing this every time like $mfile and $line ...
+	$mnum = length ($i-1);
+
+	# Spacing for line is factored into $mfile for colon mode.
+	$mline = 0 if ($COLON);
+}
+
+#
+# Print out what we got in read_log
+#
+sub display_read_log {
+
+	# Skip inward the 3 lengths and the spaces separating them.
+	$skip = $mnum + $mfile + $mline + 3;
+
+	# Special case I call "wrapmode" when we're to skip so much that we
+	# can't even fit 20 characters (and in some cases negative characters).
+	# Go to next line and automatically skip a tab's worth.
+	if (($skip + 20) >= $COL) {
+		$wrapmode = 1;
+		$skip = 8;
+	}
+
+	# Length for the string is the whole line minus length of others.
+	# Hopefully $COL is adjusted terminal's width.
+	$mstr = $COL - $skip;
+
+	$entries = $i;
+
+	$lines = 0;
+	@lasti = ();
+
+	for ($i=0; $i < $entries; $i++) {
+
+		# Print the properly justified first 3 fields.
+		print "\e[$b[1];${c[1]}m" if ($COLORS);
+		printf "%${mnum}s ", $rec[$i]->{num};  
+		print "\e[0m" if ($COLORS);
+
+		if ($COLON) {
+			print "\e[$b[2];${c[2]}m" if ($COLORS);
+			printf "%s", $rec[$i]->{file}; 
+			print "\e[0m" if ($COLORS);
+			
+			print ":";
+			
+			print "\e[$b[3];${c[3]}m" if ($COLORS);
+			printf "%s ", $rec[$i]->{line};
+			print "\e[0m" if ($COLORS);
+
+			# colon mode num of spaces to print
+			$colnumsp = ($mfile - ((length $rec[$i]->{file})
+					 + (length $rec[$i]->{line})));
+			print " " x $colnumsp;
+		} else {
+			print "\e[$b[2];${c[2]}m" if ($COLORS);
+			printf "%-${mfile}s ", $rec[$i]->{file}; 
+			print "\e[0m" if ($COLORS);
+			
+			print "\e[$b[3];${c[3]}m" if ($COLORS);
+			printf "%${mline}s ", $rec[$i]->{line};
+			print "\e[0m" if ($COLORS);
+		}
+
+		# Newline only for "wrapmode".
+		print "\n" if ($wrapmode);
+		$lines++ if ($wrapmode);
+
+		# Trickery for the string.  Do this as many times as we've got
+		# str's length divided by it's maximum possible length.
+		for ($j=0; $j < ((length $rec[$i]->{str}) / $mstr); $j++) {
+
+			# Only skip after first line.
+			print " " x $skip if ($j || $wrapmode);
+
+			# Print only $mstr character substring.
+			print "\e[$b[4];${c[4]}m" if ($COLORS);
+			print substr $rec[$i]->{str}, ($j*$mstr), $mstr;
+			print "\e[0m" if ($COLORS);
+			print "\n";
+			$lines++;
+		}
+
+		# Pager control, if enabled
+	        $firsti = $i if !defined $firsti;
+		if ($PAGER && (($lines > $ROW) || ($i >= $entries-1))) {
+
+			# put newlines to fit the screen if the last screenful
+			if ($i >= $entries-1) {
+				print "\n" x ($ROW-$lines+1);
+			}
+			exit(0) if (!defined ($adjust =
+				do_pager(100*$i/$entries)));
+			if ($adjust < 0) {
+				$i = $firsti = pop @lasti;
+			}
+			else {
+				$i = $firsti if ($adjust == 0);
+				if ($adjust > 0) {
+					# Exit if we go beyond the last screen.
+					exit(0) if ($i >= $entries-1);
+					push @lasti, $firsti;
+				}
+				undef $firsti;
+			}
+			$i--;	# Make up for the for() loop incrementing $i
+			$lines = 0;
+		}
+
+		# Bold every other entry if BOLD_ALTERNATE
+		@b[1,2,3,4] = (($b[1]+1)%2, ($b[2]+1)%2, ($b[3]+1)%2,
+			($b[4]+1)%2) if ($BOLD_ALTERNATE);
+	}
+}
+
+# We've printed a screenful, pause and let user decide what to do
+#  Returns:  undef if user requests a quit
+#            > 0   if user wants next screenful displayed
+#            = 0   if user wants this screen re-displayed
+#            < 0   if user wants previous screenful displayed
+sub do_pager() {
+	my $Percent = shift;
+	my $Command, $Input, @Keys;
+
+	print "\e[$b[5];${c[5]}m" if ($COLORS);
+	print "[$Promptname";
+	printf " - %.0f%%", $Percent if ($Percent > 0);
+	print "]? ";
+	print "\e[0m" if ($COLORS);
+
+	$Input = <STDIN>;
+	# Clean up input (remove leading and trailing whitespace)
+	#   and get command character
+	chop $Input;
+	@Keys = split(/\s+/, $Input);
+	do {
+		$Command = shift @Keys;
+	} while ((defined $Command) and !$Command and ($Command ne "0"));
+
+	return 1 if !$Command and ($Command ne "0");  # <Return>, next page
+	return 1 if ($Command eq "v");
+	return undef if (($Command eq "q") | ($Command eq "Q"));
+	return -1 if (($Command eq "-") | ($Command eq "b") |
+		($Command eq "p"));
+	return 0 if (($Command eq "l") | ($Command eq "'"));
+
+	# numbers entered; run vg
+	if ($Command =~ /^\d+$/) {
+		system "$VG $Command";
+	}
+}

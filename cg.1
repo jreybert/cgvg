@@ -1,0 +1,95 @@
+.\"             -*-Nroff-*-
+.\"
+.TH CG 1 "13 Mar 2002" "" ""
+.SH NAME
+cg \- Recursively grep for a pattern and store it.
+.SH SYNOPSIS
+.B cg 
+[ -l ] | [ [ -i ] pattern [ files ] ]
+.SH DESCRIPTION
+.B "cg "
+does a search though text files (usually source code) recursively
+for a pattern, storing matches and displaying the output in a
+human-readable fashion.  It is intended to give some of the
+functionaly of AT&T's cscope(1) tool, with the advantages of
+simplicity and not being language-specific.  The script will
+colorize output if configured as such.
+.sp
+It is typically run with a Perl regular expression to search for.
+The search can be made case insensitive by using the
+.B -i
+option.  A list of files may also be specified with an additional
+argument after the pattern.  Put the files pattern in quotes to
+make it be matched by Perl rather than by the shell.  Running the
+script with no arguments will recall the results of the previous
+search.  After the search, entries found can be edited using the
+vg(1) script.  The
+.B -l
+option shows the last log made.
+.PP
+.SH "SOME EXAMPLES"
+.B cg
+- alone recalls the previous search results.
+.sp
+.B cg \-i pattern
+- search the default list of files for all files matching the pattern
+(and case-insensitively).
+.sp
+.B cg pattern '*.c'
+- search recursively for pattern in all *.c files.  This automatically
+converts '*' to '.*' and '.' to '\\.' for you and does a Perl pattern
+match on all files in the tree.
+.sp
+.B cg pattern *.c
+- search through the shell-expanded list of *.c files, so not done
+recursively (in other words, only the files your shell pass to the
+script as arguments).
+.sp
+.B cg \-l
+- show the last log made.
+.PP
+.SH "COMMAND\-LINE OPTIONS"
+.TP 0.5i
+.B "\-i "
+Do a case-insensitive search.
+.TP 0.5i
+.B "\-l "
+Show the last log made.
+.TP 0.5i
+.B "\-p "
+Toggle the default pager option.  
+.B cg
+has a bulit-in pager function, which can be enabled or disabled by
+default (in .cgvgrc).  If the default is enabled, this option disables
+the pager; if the default is disabled, this option enables it.
+.TP 0.5i
+.B "\-P "
+Force the built-in pager to be disabled.
+
+
+
+.SH FILES
+.ne 3
+.TP
+.I ${HOME}/.cglast
+Log file of the last search.
+.ne 3
+.TP
+.I ${HOME}/.cgvgrc
+Per-user configuration file (if the defaults are not desireable).
+.ne 3
+.TP
+.I ${HOME}/.cgvg/*
+Log files in $HOSTNAME.shell_pid form with the log of the last search.
+.fi
+
+.SH "SEE ALSO"
+.BR vg (1),
+.BR perl (1),
+.BR find (1),
+.BR grep (1),
+.BR cscope (1)
+
+.SH AUTHOR
+.B cg
+was written by Joshua Uziel <uzi@uzix.org>.
